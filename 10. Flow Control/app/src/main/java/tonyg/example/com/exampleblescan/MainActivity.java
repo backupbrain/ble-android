@@ -24,7 +24,10 @@ import tonyg.example.com.exampleblescan.views.BleDevicesListAdapter;
 
 
 /**
- * Scan for bluetooth low energy devices
+ * Scan for and list BLE Peripherals
+ *
+ * @author Tony Gaitatzis backupbrain@gmail.com
+ * @date 2015-12-21
  */
 public class MainActivity extends AppCompatActivity {
     /** Constants **/
@@ -55,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
         loadUI();
         attachCallbacks();
 
-
+        // initialize the BleCommManager
         mBleCommManager = new BleCommManager();
     }
 
@@ -69,10 +72,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPause() {
         super.onPause();
+        // stop scanning when the activity pauses
         mBleCommManager.stopScanning(mScanCallback);
     }
 
     public void loadUI() {
+        // load UI components, set up the Peripheral list
         mDevicesList = (ListView) findViewById(R.id.devices_list);
         mDevicesListAdapter = new BleDevicesListAdapter();
         mDevicesList.setAdapter(mDevicesListAdapter);
@@ -80,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void attachCallbacks() {
+        // when a user clicks on a Peripheral in the list, open that Peripheral in the Connect Activity
         mDevicesList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -121,6 +127,8 @@ public class MainActivity extends AppCompatActivity {
     }
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        // Start a BLE scan when a user clicks the "start scanning" menu button
+        // and stop a BLE scan when a user clicks the "stop scanning" menu button
         switch (item.getItemId()) {
             case R.id.action_start_scan:
                 // User chose the "Scan" item
@@ -159,10 +167,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startScan() {
+        // update UI components
         mStartScanItem.setVisible(false);
         mStopScanItem.setVisible(true);
         mProgressSpinner.setVisible(true);
 
+        // clear the list of Peripherals and start scanning
         mDevicesListAdapter.clear();
         try {
             mBleCommManager.scanForDevices(mScanCallback);
@@ -178,6 +188,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onBleScanStopped() {
+        // update UI compenents to reflect that a BLE scan has stopped
         mStopScanItem.setVisible(false);
         mProgressSpinner.setVisible(false);
         mStartScanItem.setVisible(true);
@@ -187,9 +198,7 @@ public class MainActivity extends AppCompatActivity {
     // FIXME: make separate class
     // aynctaskloader
     private final CustomScanCallback mScanCallback = new CustomScanCallback() {
-        /**
-         *  Bluetooth LE Scan complete - timer expired out while searching for bluetooth devices
-         */
+        // when a Peripheral is found, process it
         public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
             Log.v(TAG, "Found "+device.getName()+", "+device.getAddress());
             // only add the device if
@@ -211,6 +220,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // update UI components when done scanning - push onto main thread
         public void onScanComplete() {
             runOnUiThread(new Runnable() {
                 @Override

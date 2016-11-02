@@ -13,7 +13,6 @@ import android.bluetooth.BluetoothGattCharacteristic;
 public class BleGattCharacteristicListItem {
     private int mItemId;
     private BluetoothGattCharacteristic mCharacteristic;
-    // here we handle sub-lists?
 
     public BleGattCharacteristicListItem(BluetoothGattCharacteristic characteristic, int itemId) {
         mCharacteristic = characteristic;

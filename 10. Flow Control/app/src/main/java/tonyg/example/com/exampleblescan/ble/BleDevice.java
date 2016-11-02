@@ -5,17 +5,16 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.UUID;
 
 /**
- * This class allows us to share Bluetooth resources
+ * This class represents a generic Bluetooth Peripheral
+ * and allows us to share Bluetooth resources
  *
  * @author Tony Gaitatzis backupbrain@gmail.com
  * @date 2016-03-06
@@ -56,13 +55,10 @@ public class BleDevice {
         return mBluetoothDevice;
     }
 
-    public BluetoothGattService getService(UUID uuid) {
-        return mBluetoothGatt.getService(uuid);
-    }
 
-
-    // When we are developing a bluetooth device, we need a current list of services
-    // by default, Android caches these services and leaves us with an out-of-date list
+    // Android caches BLE Peripheral GATT Profiles.  This is ok when the Peripheral GATT Profile is
+    // fixed, but since we are developing the Peripheral along-side the Central, we need to clear
+    // the cache so that we don't see old GATT Profiles
     // http://stackoverflow.com/a/22709467
     public boolean refreshDeviceCache() throws Exception {
         Method localMethod = mBluetoothGatt.getClass().getMethod("refresh", new Class[0]);
@@ -74,13 +70,27 @@ public class BleDevice {
         return false;
     }
 
-    // http://stackoverflow.com/a/20020279
+    /**
+     * Request a data/value read from a Ble Characteristic
+     *
+     * @param characteristic
+     */
     public void readMessage(final BluetoothGattCharacteristic characteristic) {
+        // Reading a characteristic requires both requesting the read and handling the callback that is
+        // sent when the read is successful
+        // http://stackoverflow.com/a/20020279
         mBluetoothGatt.readCharacteristic(characteristic);
     }
 
-
+    /**
+     * Write a value to the Characteristic
+     *
+     * @param message
+     * @param characteristic
+     * @throws Exception
+     */
     public void sendMessage(String message, BluetoothGattCharacteristic characteristic) throws Exception {
+        // reset the queue counters, prepare the message to be sent, and send the message to the Characteristic
         outboundMessage = message;
         numChunksSent = 0;
         byte[] messageBytes = message.getBytes();
@@ -90,20 +100,27 @@ public class BleDevice {
     }
 
 
-
-    // modified fromhttp://stackoverflow.com/a/18011901/5671180
-    //public boolean setCharacteristicNotification(BluetoothDevice device, UUID serviceUuid, UUID characteristicUuid, boolean enable) {
+    /**
+     * Subscribe or unsubscribe from Characteristic Notifications
+     *
+     * @param characteristic
+     * @param enabled <b>true</b> for "subscribe" <b>false</b> for "unsubscribe"
+     */
     public void setCharacteristicNotification(BluetoothGattCharacteristic characteristic, final boolean enabled) {
+        // modified from http://stackoverflow.com/a/18011901/5671180
+        // This is a 2-step process
+        // Step 1: set the Characteristic Notification parameter locally
         mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
         final List<BluetoothGattDescriptor> descriptors = characteristic.getDescriptors();
+        // Step 2: Write a descriptor to the Bluetooth GATT enabling the subscription on the Perpiheral
         // turns out you need to implement a delay between setCharacteristicNotification and setvalue.
-        // maybe it can be handled with a callback?
+        // maybe it can be handled with a callback, but this is an easy way to implement
         final Handler handler = new Handler();
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 for (BluetoothGattDescriptor descriptor : descriptors) {
-                    descriptor.setValue(enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : new byte[] { 0x00, 0x00 });
+                    descriptor.setValue(enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : new byte[]{0x00, 0x00});
                     mBluetoothGatt.writeDescriptor(descriptor);
                 }
             }
@@ -111,7 +128,14 @@ public class BleDevice {
     }
 
 
-
+    /**
+     * Write a portion of a larger message to a Characteristic
+     *
+     * @param message The message being written
+     * @param offset The current packet index in queue to be written
+     * @param characteristic The Characteristic being written to
+     * @throws Exception
+     */
     public void sendNextChunk(String message, int offset, BluetoothGattCharacteristic characteristic) throws Exception {
         byte[] temp = message.getBytes();
 
@@ -124,8 +148,6 @@ public class BleDevice {
         }
 
         byte[] chunk = new byte[dataLength];
-        //System.arraycopy(getCurrentMessage().getBytes(), getCurrentOffset()*chunkSize, chunk, 0, chunkSize);
-        //chunk[dataLength] = 0x00;
         for (int localIndex = 0; localIndex < chunk.length; localIndex++) {
             int index = (offset * dataLength) + localIndex;
             if (index < temp.length) {
@@ -135,23 +157,42 @@ public class BleDevice {
             }
         }
 
+        // a simpler way to write this might be:
+        //System.arraycopy(getCurrentMessage().getBytes(), getCurrentOffset()*chunkSize, chunk, 0, chunkSize);
+        //chunk[dataLength] = 0x00;
+
 
         Log.v(TAG, "Writing message: '" + new String(chunk, "ASCII") + "' to " + characteristic.getUuid().toString());
         characteristic.setValue(chunk);
         mBluetoothGatt.writeCharacteristic(characteristic);
         numChunksSent++;
     }
+
+    /**
+     * Determine if a message has been completely wirtten to a Characteristic or if more data is in queue
+     *
+     * @return <b>false</b> if all of a message is has been written to a Characteristic, <b>true</b> otherwise
+     */
     public boolean hasMoreChunks() {
         boolean hasMoreChunks = numChunksSent < numChunksTotal;
         Log.v(TAG, numChunksSent + " of " + numChunksTotal + " chunks sent: "+hasMoreChunks);
         return hasMoreChunks;
     }
+
+    /**
+     * Determine how much of a message has been written to a Characteristic
+     *
+     * @return integer representing how many packets have been written so far to Characteristic
+     */
     public int getCurrentOffset() {
         return numChunksSent;
     }
-    public int getTotalChunks() {
-        return numChunksTotal;
-    }
+
+    /**
+     * Get the current message being written to a Characterstic
+     *
+     * @return the message in queue for writing to a Characteristic
+     */
     public String getCurrentMessage() {
         return outboundMessage;
     }
@@ -161,7 +202,9 @@ public class BleDevice {
     // http://stackoverflow.com/a/21300916/5671180
     // more options available at:
     // http://www.programcreek.com/java-api-examples/index.php?class=android.bluetooth.BluetoothGattCharacteristic&method=PROPERTY_NOTIFY
+
     /**
+     * Check if a Characetristic supports write permissions
      * @return Returns <b>true</b> if property is writable
      */
     public static boolean isCharacteristicWritable(BluetoothGattCharacteristic pChar) {
@@ -169,6 +212,8 @@ public class BleDevice {
     }
 
     /**
+     * Check if a Characetristic has read permissions
+     *
      * @return Returns <b>true</b> if property is Readable
      */
     public static boolean isCharacteristicReadable(BluetoothGattCharacteristic pChar) {
@@ -176,6 +221,8 @@ public class BleDevice {
     }
 
     /**
+     * Check if a Characteristic supports Notifications
+     *
      * @return Returns <b>true</b> if property is supports notification
      */
     public static boolean isCharacteristicNotifiable(BluetoothGattCharacteristic pChar) {

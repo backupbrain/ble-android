@@ -4,7 +4,7 @@ import android.bluetooth.BluetoothDevice;
 
 /**
  * A visual representation of a Bluetooth Low Energy Device.
- * This is paired with a ble_list_item.xml that lets us list all the devices found by the BLECommManager
+ * This is paired with a ble_list_item.xml that lets us list all the devices found by the BleCommManager
  *
  * @author Tony Gaitatzis backupbrain@gmail.com
  * @date 2015-12-17

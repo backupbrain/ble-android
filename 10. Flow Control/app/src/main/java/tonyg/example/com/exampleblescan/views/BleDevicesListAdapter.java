@@ -21,39 +21,57 @@ import tonyg.example.com.exampleblescan.R;
 
 public class BleDevicesListAdapter extends BaseAdapter {
 
-    private ArrayList<BleDeviceListItem> mBluetoothDeviceListItems;
+    private ArrayList<BleDeviceListItem> mBluetoothDeviceListItems; // number of ListItems
 
-    /*
-    public BleDevicesListAdapter() { //, ArrayList<BleDeviceListItem> mBluetoothDeviceListItems) {
-        //mContext = context;
-        //mBluetoothDeviceListItems = mBluetoothDeviceListItems;
-    }
-    */
-
+    /**
+     * How many items are in the ListView
+     * @return the number of items in this ListView
+     */
     public int getCount() {
         if (mBluetoothDeviceListItems.size()<=0)  return 1;
         return mBluetoothDeviceListItems.size();
     }
 
+    /**
+     * Add a new Peripheral to the ListView
+     *
+     * @param device Periheral device information
+     * @param rssi Periheral's RSSI, indicating its radio signal quality
+     */
     public void addBluetoothDevice(BluetoothDevice device, int rssi) {
+        // update UI stuff
         int listItemId = mBluetoothDeviceListItems.size();
         BleDeviceListItem listItem = new BleDeviceListItem();
         listItem.setDevice(device);
         listItem.setItemId(listItemId);
         listItem.setPowerLevel(rssi);
 
+        // add to list
         mBluetoothDeviceListItems.add(listItem);
         notifyDataSetChanged();
     }
 
+    /**
+     * Get current state of ListView
+     * @return ArrayList of BleDeviceListItems
+     */
     public ArrayList<BleDeviceListItem> getItems() {
         return mBluetoothDeviceListItems;
     }
 
+    /**
+     * Clear all items from the ListView
+     */
     public void clear() {
         mBluetoothDeviceListItems.clear();
     }
 
+    /**
+     * Get the BleDeviceListItem held at some position in the ListView
+     *
+     * @param position the position of a desired item in the list
+     * @return the BleDeviceListItem at some position
+     */
     public BleDeviceListItem getItem(int position) {
         return mBluetoothDeviceListItems.get(position);
     }
@@ -63,7 +81,7 @@ public class BleDevicesListAdapter extends BaseAdapter {
     }
 
     /**
-     * What UI stuff is contained in this List Item
+     * This ViewHolder represents what UI components are in each List Item in the ListView
      */
     public static class ViewHolder{
         public TextView mName;
@@ -71,10 +89,20 @@ public class BleDevicesListAdapter extends BaseAdapter {
         public TextView mPowerLevel;
     }
 
+    /**
+     * Generate a new ListItem for some known position in the ListView
+     *
+     * @param position the position of the ListItem
+     * @param convertView An existing List Item
+     * @param parent The Parent ViewGroup
+     * @return The List Item
+     */
     public View getView(int position, View convertView, ViewGroup parent) {
         View v = convertView;
         ViewHolder holder;
 
+        // if this ListItem does not exist yet, generate it
+        // otherwise, use it
         if(convertView == null) {
             // convert list_item_device_device.xml to a View
             LayoutInflater inflater = LayoutInflater.from(parent.getContext());
@@ -91,6 +119,8 @@ public class BleDevicesListAdapter extends BaseAdapter {
             holder = (ViewHolder) v.getTag();
         }
 
+        // if there are known Peripherals, create a ListItem that says so
+        // otherwise, display a ListItem with Bluetooth Periheral information
         if (mBluetoothDeviceListItems.size() <= 0) {
             holder.mName.setText(R.string.no_data);
         } else {

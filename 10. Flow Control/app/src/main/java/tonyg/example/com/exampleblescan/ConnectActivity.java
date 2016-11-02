@@ -27,7 +27,7 @@ import tonyg.example.com.exampleblescan.ble.BleDevice;
 import tonyg.example.com.exampleblescan.views.BleGattProfileListAdapter;
 
 /**
- * Connect to a BLE Device, list its GATT services
+ * Connect to a BLE Peripherals, list its GATT services
  *
  * @author Tony Gaitatzis backupbrain@gmail.com
  * @date 2015-12-21
@@ -52,13 +52,11 @@ public class ConnectActivity extends AppCompatActivity {
     private ExpandableListView mDevicesList;
     private TextView mDeviceNameTV,mDeviceAddressTV;
     private BleGattProfileListAdapter mGattProfileListAdapter;
-    //private final ArrayList<BleGattServiceListItem> mServicesListItems = new ArrayList<BleGattServiceListItem>(); // FIXME: move to BleSerivceListAdapter
-    //private LinkedHashMap<Integer, ArrayList<BleGattCharacteristicListItem>> mCharacteristicListItems = new LinkedHashMap<Integer, ArrayList<BleGattCharacteristicListItem>>();
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // grab a device from the savedInstanceState
+        // grab information passed to the savedInstanceState,
+        // from when the user clicked on the list in MainActivty
         if (savedInstanceState == null) {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
@@ -105,13 +103,15 @@ public class ConnectActivity extends AppCompatActivity {
         mDeviceAddressTV = (TextView)findViewById(R.id.address);
 
         mDevicesList = (ExpandableListView) findViewById(R.id.devices_list);
-        //mGattProfileListAdapter = new BleGattProfileListAdapter(mServicesListItems, mCharacteristicListItems);
         mGattProfileListAdapter = new BleGattProfileListAdapter();
 
 
         mDevicesList.setAdapter(mGattProfileListAdapter);
     }
     public void attachCallbacks() {
+        // When a user clicks on a GATT Service, drop down the GATT Characteristics belonging
+        // to thet Service.
+        // When a user clicks on a GATT Characteristic, open in TalkActivity
         mDevicesList.setOnChildClickListener(new ExpandableListView.OnChildClickListener() {
             @Override
             public boolean onChildClick(ExpandableListView parent, View v, int groupPosition, int childPosition, long id) {
@@ -193,6 +193,7 @@ public class ConnectActivity extends AppCompatActivity {
 
 
     public void connect() {
+        // grab the Peripheral Device address and attempt to connect
         BluetoothDevice bluetoothDevice = mBleCommManager.getBluetoothAdapter().getRemoteDevice(mDeviceAddress);
         mProgressSpinner.setVisible(true);
         try {
@@ -203,12 +204,14 @@ public class ConnectActivity extends AppCompatActivity {
         }
     }
     public void disconnect() {
+        // disconnect from the Peripheral
         mProgressSpinner.setVisible(true);
         mBleDevice.disconnect();
         finish();
     }
 
     public void onBleConnected() {
+        // update UI to reflect a connection
         BluetoothDevice bluetoothDevice = mBleDevice.getBluetoothDevice();
         mDeviceNameTV.setText(bluetoothDevice.getName());
         mDeviceAddressTV.setText(bluetoothDevice.getAddress());
@@ -218,6 +221,7 @@ public class ConnectActivity extends AppCompatActivity {
 
     }
     public void onBleDisconnected() {
+        // update UI to reflect a disconnection
         mDeviceNameTV.setText("");
         mDeviceAddressTV.setText("");
         mProgressSpinner.setVisible(false);
@@ -225,24 +229,23 @@ public class ConnectActivity extends AppCompatActivity {
         mDisconnectItem.setVisible(false);
     }
     public void onBleServiceDiscovered() {
+        // update UI to reflect the GATT profile of the connected Perihperal
         mProgressSpinner.setVisible(false);
         mConnectItem.setVisible(false);
         mDisconnectItem.setVisible(true);
         mGattProfileListAdapter.notifyDataSetChanged();
     }
 
-    private static class Blah extends BluetoothGattCallback {
-
-    }
-
     private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
+            // We don't care about this here as we aren't communicating with Characteristics
         }
 
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-
+            // There has been a connection or a disconnection from a Peripheral.
+            // Figure out what happened and update the UI to reflect the change
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 Log.v(TAG, "Connected to device");
 
@@ -276,32 +279,15 @@ public class ConnectActivity extends AppCompatActivity {
                 for (BluetoothGattService gattService : gattServices) {
                     if (gattService != null) {
                         Log.v(TAG, "Service uuid: " + gattService.getUuid());
+
                         // add the gatt service to our list
-                        //mGattServices.add(gattService);
-                        //int serviceItemID = mGattServices.size() - 1;
-                        //mGattCharactaristics.put(serviceItemID, new ArrayList<BluetoothGattCharacteristic>());
-
                         mGattProfileListAdapter.addService(gattService);
-
-                        // build a new list item
-                        //BleGattServiceListItem serviceListItem = new BleGattServiceListItem(gattService, serviceItemID);
-
-                        //mServicesListItems.add(item);
-                        //mCharacteristicListItems.put(serviceItemID, new ArrayList<BleGattCharacteristicListItem>());
 
                         // while we are here, let's ask for this service's characteristics:
                         List<BluetoothGattCharacteristic> characteristics = gattService.getCharacteristics();
                         for (BluetoothGattCharacteristic characteristic : characteristics) {
                             if (characteristic != null) {
-                                /*
-                                mGattCharactaristics.get(serviceItemID).add(characteristic);
-
-                                BleGattCharacteristicListItem characteristicListItem = new BleGattCharacteristicListItem();
-                                characteristicListItem.setCharacteristic(characteristic);
-                                characteristicListItem.setItemId(mGattCharactaristics.get(serviceItemID).size() - 1);
-
-                                mCharacteristicListItems.get(serviceItemID).add(characteristicListItem);
-                                */
+                                // if there are Characteristics, add them to the Service's list
                                 try {
                                     mGattProfileListAdapter.addCharacteristic(gattService, characteristic);
                                 } catch (Exception e) {
