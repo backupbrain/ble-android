@@ -82,7 +82,6 @@ public class TalkActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        //mBleDevice = ((BleApplication) getApplicationContext()).getBleDevice();
 
         mBleCommManager = new BleCommManager();
         mBleDevice = new BleDevice();
