@@ -21,7 +21,7 @@ import tonyg.example.com.exampleblescan.R;
 
 public class BleDevicesListAdapter extends BaseAdapter {
 
-    private ArrayList<BleDeviceListItem> mBluetoothDeviceListItems; // number of ListItems
+    private ArrayList<BleDeviceListItem> mBluetoothDeviceListItems; // list of Peripherals
 
     /**
      * How many items are in the ListView

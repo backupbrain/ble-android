@@ -35,9 +35,10 @@ import tonyg.example.com.exampleblescan.ble.BleDevice;
 public class TalkActivity extends AppCompatActivity {
     /** Constants **/
     private static final String TAG = TalkActivity.class.getSimpleName();
-    public static final String MAC_ADDRESS_KEY = "bluetoothMacAddress"; // FIXME: give a better name
-    public static final String CHARACTERISTIC_KEY = "characteristicUUID"; // FIXME: give a better name
-    public static final String SERVICE_KEY = "serviceUUID"; // FIXME: give a better name
+    public static final String CHARACTER_ENCODING = "ASCII";
+    public static final String MAC_ADDRESS_KEY = "bluetoothMacAddress";
+    public static final String CHARACTERISTIC_KEY = "characteristicUUID";
+    public static final String SERVICE_KEY = "serviceUUID";
 
     /** Bluetooth Stuff **/
     private BleCommManager mBleCommManager;
@@ -58,7 +59,8 @@ public class TalkActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // grab a device from the savedInstanceState
+        // grab a Characteristic from the savedInstanceState,
+        // passed when a user clicked on a Characteristic in the Connect Activity
         if (savedInstanceState == null) {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
@@ -92,7 +94,7 @@ public class TalkActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-
+        // bring up the Peripheral and attempt to connect
         BluetoothDevice bluetoothDevice = mBleCommManager.getBluetoothAdapter().getRemoteDevice(mDeviceAddress);
         mProgressSpinner.setVisible(true);
         try {
@@ -109,6 +111,9 @@ public class TalkActivity extends AppCompatActivity {
         super.onPause();
     }
 
+    /**
+     * Load UI components
+     */
     public void loadUI() {
         mResponseText = (TextView) findViewById(R.id.response_text);
         mSendText = (TextView) findViewById(R.id.send_text);
@@ -170,16 +175,18 @@ public class TalkActivity extends AppCompatActivity {
     }
 
 
+    // characteristic supports writes.  Update UI
     public void onCharacteristicWritable() {
         Log.v(TAG, "Characteristic is writable");
         // send features
 
-        // attach callbacks to the buttons and stuff
+        // attach callbacks to the button and other stuff
         mSendButton.setVisibility(View.VISIBLE);
         mSendText.setVisibility(View.VISIBLE);
         mSendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // write to the charactersitic when the send button is clicked
                 Log.v(TAG, "Send button clicked");
                 String message = mSendText.getText().toString();
                 try {
@@ -192,6 +199,8 @@ public class TalkActivity extends AppCompatActivity {
         });
 
     }
+
+    // Charactersitic supports reads.  Update UI
     public void onCharacteristicReadable() {
         Log.v(TAG, "Characteristic is readable");
 
@@ -208,6 +217,7 @@ public class TalkActivity extends AppCompatActivity {
 
     }
 
+    // Characteristic supports notifications.  Update UI
     public void onCharacteristicNotifiable() {
         mSubscribeCheckbox.setVisibility(View.VISIBLE);
         mSubscribeCheckbox.setChecked(true);
@@ -223,6 +233,8 @@ public class TalkActivity extends AppCompatActivity {
         );
     }
 
+    // Update TextView when a new message is read from a Charactersitic.
+    // Also scroll to the bottom so that new messages are always in view
     public void updateResponseText(String message) {
         mResponseText.append(message + "\n");
         final int scrollAmount = mResponseText.getLayout().getLineTop(mResponseText.getLineCount()) - mResponseText.getHeight();
@@ -234,10 +246,12 @@ public class TalkActivity extends AppCompatActivity {
         }
     }
 
+    // Clear the input TextView when a Characteristic is successfully written to.
     public void onBleMessageSent() {
         mSendText.setText("");
     }
 
+    // On a multi-part message, send the next packet of a message when a write operation is successful
     public void onBleSentMessageReceived(final BluetoothGattCharacteristic characteristic) {
         Log.v(TAG, "Flow control message received by server");
         if (mBleDevice.hasMoreChunks()) {
@@ -248,6 +262,8 @@ public class TalkActivity extends AppCompatActivity {
             }
         }
     }
+
+    // convert bytes to hexadecimal for debugging
     public static String bytesToHex(byte[] bytes) {
         char[] hexArray = "0123456789ABCDEF".toCharArray();
         char[] hexChars = new char[bytes.length * 3];
@@ -260,6 +276,7 @@ public class TalkActivity extends AppCompatActivity {
         return new String(hexChars);
     }
 
+    // convert bytes to an integer in Little Endian
     public static int bytesToInt(byte[] bytes) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes); // big-endian by default
         byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -267,18 +284,30 @@ public class TalkActivity extends AppCompatActivity {
         return result;
     }
 
+    /**
+     * BluetoothGattCallback handles connections, state changes, reads, writes, and GATT profile listings to a Peripheral
+     *
+     */
     private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
+        /**
+         * Charactersitic successfuly read
+         *
+         * @param gatt connection to GATT
+         * @param characteristic The charactersitic that was read
+         * @param status the status of the operation
+         */
         @Override
         public void onCharacteristicRead(final BluetoothGatt gatt,
                                          final BluetoothGattCharacteristic characteristic,
                                          int status) {
-
+            // characteristic was read.  Convert the data to something usable
+            // on Android and display it in the UI
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 // read more at http://developer.android.com/guide/topics/connectivity/bluetooth-le.html#notification
                 final byte[] data = characteristic.getValue();
                 String m = "";
                 try {
-                    m = new String(data, "ASCII"); // FIXME: set as a constant
+                    m = new String(data, CHARACTER_ENCODING);
                 } catch (Exception e) {
                     Log.e(TAG, "Could not convert message byte array to String");
                 }
@@ -301,6 +330,12 @@ public class TalkActivity extends AppCompatActivity {
 
         }
 
+        /**
+         * Characteristic was written successfully.  update the UI
+         * @param gatt Connection to the GATT
+         * @param characteristic The Characteristic that was written
+         * @param status write status
+         */
         @Override
         public void onCharacteristicWrite (BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             Log.v(TAG, "characteristic written");
@@ -313,11 +348,23 @@ public class TalkActivity extends AppCompatActivity {
                 });
             }
         }
+
+        /**
+         * Charactersitic value changed.  Read new value.
+         * @param gatt Connection to the GATT
+         * @param characteristic The Characterstic
+         */
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
             mBleDevice.readMessage(characteristic);
         }
 
+        /**
+         * Peripheral connected or disconnected.  Update UI
+         * @param bluetoothGatt Connection to GATT
+         * @param status status of the operation
+         * @param newState new connection state
+         */
         @Override
         public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
 
@@ -332,6 +379,11 @@ public class TalkActivity extends AppCompatActivity {
             }
         }
 
+        /**
+         * GATT Profile discovered.  Update UI
+         * @param bluetoothGatt connection to GATT
+         * @param status status of operation
+         */
         @Override
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
 
@@ -339,6 +391,7 @@ public class TalkActivity extends AppCompatActivity {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 // connect to a specific service
 
+                // determine the read/write/notify permissions of the Characterstic
                 mCharacteristic = bluetoothGatt.getService(mServiceUUID).getCharacteristic(mCharacteristicUUID);
                 if (BleDevice.isCharacteristicReadable(mCharacteristic)) {
                     runOnUiThread(new Runnable() {
@@ -381,7 +434,11 @@ public class TalkActivity extends AppCompatActivity {
     };
 
 
+    /**
+     * Disconnect
+     */
     private void disconnect() {
+        // close the Activity when disconnecting.  No actions can be done without a connection
         mBleDevice.disconnect();
         finish();
     }

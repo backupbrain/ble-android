@@ -35,7 +35,7 @@ import tonyg.example.com.exampleblescan.views.BleGattProfileListAdapter;
 public class ConnectActivity extends AppCompatActivity {
     /** Constants **/
     private static final String TAG = ConnectActivity.class.getSimpleName();
-    public static final String MAC_ADDRESS_KEY = "bluetoothMacAddress"; // FIXME: give a good name
+    public static final String MAC_ADDRESS_KEY = "bluetoothMacAddress";
 
     /** Bluetooth Stuff **/
     private BleCommManager mBleCommManager;
@@ -170,6 +170,7 @@ public class ConnectActivity extends AppCompatActivity {
             case R.id.action_disconnect:
                 // User chose the "Stop" item
                 disconnect();
+                finish();
                 return true;
 
             default:
@@ -204,10 +205,9 @@ public class ConnectActivity extends AppCompatActivity {
         }
     }
     public void disconnect() {
-        // disconnect from the Peripheral
+        // disconnect from the Peripheral.
         mProgressSpinner.setVisible(true);
         mBleDevice.disconnect();
-        finish();
     }
 
     public void onBleConnected() {
@@ -244,8 +244,9 @@ public class ConnectActivity extends AppCompatActivity {
 
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            // There has been a connection or a disconnection from a Peripheral.
-            // Figure out what happened and update the UI to reflect the change
+            // There has been a connection or a disconnection with a Peripheral.
+            // If this is a connection, update the UI to reflect the change
+            // and discover the GATT profile of the connected Peripheral
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 Log.v(TAG, "Connected to device");
 
@@ -257,16 +258,6 @@ public class ConnectActivity extends AppCompatActivity {
                 });
 
                 gatt.discoverServices();
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.v(TAG, "Disconnected from device");
-
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        onBleDisconnected();
-                    }
-                });
-
             }
         }
 
@@ -300,6 +291,7 @@ public class ConnectActivity extends AppCompatActivity {
 
 
                 }
+                disconnect(); // disconnect from the Peripheral so that a connection is possible again in TalkActivity
             } else {
                 Log.e(TAG, "Something went wrong while discovering GATT services from this device");
             }

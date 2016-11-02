@@ -25,17 +25,8 @@ import tonyg.example.com.exampleblescan.ble.BleDevice;
 public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
     private final static String TAG = BleGattProfileListAdapter.class.getSimpleName();
 
-    private ArrayList<BleGattServiceListItem> mBleGattServiceListItems;
-    private Map<Integer, ArrayList<BleGattCharacteristicListItem>> mBleCharacteristicListItems;
-
-
-    //private final ArrayList<BleGattServiceListItem> listItems = new ArrayList<BleGattServiceListItem>(); // FIXME: add this and an addService() method
-    /*
-    public BleGattProfileListAdapter(ArrayList<BleGattServiceListItem> mBleGattServiceListItems, Map<Integer, ArrayList<BleGattCharacteristicListItem>> mBleCharacteristicListItems) {
-        mBleGattServiceListItems = mBleGattServiceListItems;
-        mBleCharacteristicListItems = mBleCharacteristicListItems;
-    }
-    */
+    private ArrayList<BleGattServiceListItem> mBleGattServiceListItems; // list of Services
+    private Map<Integer, ArrayList<BleGattCharacteristicListItem>> mBleCharacteristicListItems; // list of Characteristics
 
     /**
      * Instantiate the class
