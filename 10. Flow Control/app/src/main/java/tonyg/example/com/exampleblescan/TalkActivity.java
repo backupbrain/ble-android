@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -18,16 +19,16 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.util.List;
 import java.util.UUID;
 
 import tonyg.example.com.exampleblescan.ble.BleCommManager;
-import tonyg.example.com.exampleblescan.ble.BleDevice;
+import tonyg.example.com.exampleblescan.ble.BlePeripheral;
 
 /**
- * Connect to a BLE Device, list its GATT services
+ * Connect to a BLE Peripheral, list its GATT services
  *
  * @author Tony Gaitatzis backupbrain@gmail.com
  * @date 2015-12-21
@@ -35,24 +36,25 @@ import tonyg.example.com.exampleblescan.ble.BleDevice;
 public class TalkActivity extends AppCompatActivity {
     /** Constants **/
     private static final String TAG = TalkActivity.class.getSimpleName();
+
     public static final String CHARACTER_ENCODING = "ASCII";
-    public static final String MAC_ADDRESS_KEY = "bluetoothMacAddress";
+    public static final String PERIPHERAL_MAC_ADDRESS_KEY = "peripheralMacAddress";
     public static final String CHARACTERISTIC_KEY = "characteristicUUID";
     public static final String SERVICE_KEY = "serviceUUID";
 
     /** Bluetooth Stuff **/
     private BleCommManager mBleCommManager;
-    private BleDevice mBleDevice;
+    private BlePeripheral mBlePeripheral;
 
     private BluetoothGattCharacteristic mCharacteristic;
 
     /** Functional stuff **/
-    private String mDeviceAddress;
+    private String mPeripheralMacAddress;
     private UUID mCharacteristicUUID, mServiceUUID;
 
     /** UI Stuff **/
     private MenuItem mProgressSpinner, mDisconnectItem;
-    private TextView mResponseText, mSendText, mDeviceNameTV, mDeviceAddressTV, mServiceUUIDTV;
+    private TextView mResponseText, mSendText, mPeripheralBroadcastNameTV, mPeripheralAddressTV, mServiceUUIDTV;
     private Button mSendButton, mReadButton;
     private CheckBox mSubscribeCheckbox;
 
@@ -64,16 +66,17 @@ public class TalkActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
-                mDeviceAddress = extras.getString(MAC_ADDRESS_KEY);
+                mPeripheralMacAddress = extras.getString(PERIPHERAL_MAC_ADDRESS_KEY);
                 mCharacteristicUUID = UUID.fromString(extras.getString(CHARACTERISTIC_KEY));
                 mServiceUUID = UUID.fromString(extras.getString(SERVICE_KEY));
             }
         } else {
-            mDeviceAddress = savedInstanceState.getString(MAC_ADDRESS_KEY);
+            mPeripheralMacAddress = savedInstanceState.getString(PERIPHERAL_MAC_ADDRESS_KEY);
             mCharacteristicUUID = UUID.fromString(savedInstanceState.getString(CHARACTERISTIC_KEY));
             mServiceUUID = UUID.fromString(savedInstanceState.getString(SERVICE_KEY));
         }
 
+        Log.v(TAG, "Incoming mac address: "+ mPeripheralMacAddress);
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_talk);
@@ -83,7 +86,7 @@ public class TalkActivity extends AppCompatActivity {
 
 
         mBleCommManager = new BleCommManager();
-        mBleDevice = new BleDevice();
+        mBlePeripheral = new BlePeripheral();
 
         loadUI();
 
@@ -94,15 +97,6 @@ public class TalkActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-        // bring up the Peripheral and attempt to connect
-        BluetoothDevice bluetoothDevice = mBleCommManager.getBluetoothAdapter().getRemoteDevice(mDeviceAddress);
-        mProgressSpinner.setVisible(true);
-        try {
-            mBleDevice.connect(bluetoothDevice, mGattCallback, getApplicationContext());
-        } catch (Exception e) {
-            mProgressSpinner.setVisible(false);
-            Log.e(TAG, "Error connecting to device");
-        }
     }
 
 
@@ -117,16 +111,15 @@ public class TalkActivity extends AppCompatActivity {
     public void loadUI() {
         mResponseText = (TextView) findViewById(R.id.response_text);
         mSendText = (TextView) findViewById(R.id.send_text);
-        mDeviceNameTV = (TextView)findViewById(R.id.name);
-        mDeviceAddressTV = (TextView)findViewById(R.id.address);
+        mPeripheralBroadcastNameTV = (TextView)findViewById(R.id.name);
+        mPeripheralAddressTV = (TextView)findViewById(R.id.address);
         mServiceUUIDTV = (TextView)findViewById(R.id.service_uuid);
 
         mSendButton = (Button) findViewById(R.id.send_button);
         mReadButton = (Button) findViewById(R.id.read_button);
 
-        BluetoothDevice device = mBleDevice.getBluetoothDevice();
-        mDeviceNameTV.setText(device.getName());
-        mDeviceAddressTV.setText(device.getAddress());
+        mPeripheralBroadcastNameTV.setText(R.string.connecting);
+
         Log.v(TAG, "Incoming Service UUID: " + mServiceUUID.toString());
         Log.v(TAG, "Incoming Characteristic UUID: " + mCharacteristicUUID.toString());
         mServiceUUIDTV.setText(mCharacteristicUUID.toString());
@@ -156,6 +149,9 @@ public class TalkActivity extends AppCompatActivity {
         mDisconnectItem.setVisible(true);
         mProgressSpinner.setVisible(false);
 
+        initializeBluetooth();
+        connect();
+
         return super.onPrepareOptionsMenu(menu);
     }
     @Override
@@ -175,7 +171,42 @@ public class TalkActivity extends AppCompatActivity {
     }
 
 
-    // characteristic supports writes.  Update UI
+    public void initializeBluetooth() {
+        try {
+            mBleCommManager.initBluetooth(this);
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not initialize bluetooth", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, e.getMessage());
+            finish();
+        }
+    }
+
+
+    public void connect() {
+        // grab the Peripheral Device address and attempt to connect
+        BluetoothDevice bluetoothDevice = mBleCommManager.getBluetoothAdapter().getRemoteDevice(mPeripheralMacAddress);
+        mProgressSpinner.setVisible(true);
+        try {
+            mBlePeripheral.connect(bluetoothDevice, mGattCallback, getApplicationContext());
+        } catch (Exception e) {
+            mProgressSpinner.setVisible(false);
+            Log.e(TAG, "Error connecting to peripheral");
+        }
+    }
+
+    /**
+     * Peripheral has connected.  Update UI
+     */
+    public void onBleConnected() {
+        BluetoothDevice bluetoothDevice = mBlePeripheral.getBluetoothDevice();
+        mPeripheralBroadcastNameTV.setText(bluetoothDevice.getName());
+        mPeripheralAddressTV.setText(bluetoothDevice.getAddress());
+        mProgressSpinner.setVisible(false);
+    }
+
+    /**
+     * characteristic supports writes.  Update UI
+     */
     public void onCharacteristicWritable() {
         Log.v(TAG, "Characteristic is writable");
         // send features
@@ -190,7 +221,7 @@ public class TalkActivity extends AppCompatActivity {
                 Log.v(TAG, "Send button clicked");
                 String message = mSendText.getText().toString();
                 try {
-                    mBleDevice.sendMessage(message, mCharacteristic);
+                    mBlePeripheral.writeValueToCharacteristic(message, mCharacteristic);
 
                 } catch (Exception e) {
                     Log.e(TAG, "problem sending message through bluetooth");
@@ -200,7 +231,9 @@ public class TalkActivity extends AppCompatActivity {
 
     }
 
-    // Charactersitic supports reads.  Update UI
+    /**
+     * Charactersitic supports reads.  Update UI
+     */
     public void onCharacteristicReadable() {
         Log.v(TAG, "Characteristic is readable");
 
@@ -210,14 +243,16 @@ public class TalkActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 Log.v(TAG, "Read button clicked");
-                mBleDevice.readMessage(mCharacteristic);
+                mBlePeripheral.readValueFromCharacteristic(mCharacteristic);
             }
         });
 
 
     }
 
-    // Characteristic supports notifications.  Update UI
+    /**
+     * Characteristic supports notifications.  Update UI
+     */
     public void onCharacteristicNotifiable() {
         mSubscribeCheckbox.setVisibility(View.VISIBLE);
         mSubscribeCheckbox.setChecked(true);
@@ -226,15 +261,19 @@ public class TalkActivity extends AppCompatActivity {
                     @Override
                     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                         // subscribe to notifications from this channel
-                        mBleDevice.setCharacteristicNotification(mCharacteristic, isChecked);
+                        mBlePeripheral.setCharacteristicNotification(mCharacteristic, isChecked);
 
                     }
                 }
         );
     }
 
-    // Update TextView when a new message is read from a Charactersitic.
-    // Also scroll to the bottom so that new messages are always in view
+    /**
+     * Update TextView when a new message is read from a Charactersitic
+     * Also scroll to the bottom so that new messages are always in view
+     *
+     * @param message the Characterstic value to display in the UI as text
+     */
     public void updateResponseText(String message) {
         mResponseText.append(message + "\n");
         final int scrollAmount = mResponseText.getLayout().getLineTop(mResponseText.getLineCount()) - mResponseText.getHeight();
@@ -246,25 +285,37 @@ public class TalkActivity extends AppCompatActivity {
         }
     }
 
-    // Clear the input TextView when a Characteristic is successfully written to.
-    public void onBleMessageSent() {
+    /**
+     * Clear the input TextView when a Characteristic is successfully written to.
+     */
+    public void onBleCharacteristicValueWritten() {
         mSendText.setText("");
     }
 
-    // On a multi-part message, send the next packet of a message when a write operation is successful
-    public void onBleSentMessageReceived(final BluetoothGattCharacteristic characteristic) {
+    /**
+     * On a multi-part message, send the next packet of a message when a write operation is successful
+     *
+     * @param characteristic the Charactersitic being written to
+     */
+    public void onBleCharacteristicReady(final BluetoothGattCharacteristic characteristic) {
         Log.v(TAG, "Flow control message received by server");
-        if (mBleDevice.hasMoreChunks()) {
+        if (mBlePeripheral.morePacketsAvailableInQueue()) {
             try {
-                mBleDevice.sendNextChunk(mBleDevice.getCurrentMessage(), mBleDevice.getCurrentOffset(), characteristic);
+                mBlePeripheral.writePartialValueToCharacteristic(mBlePeripheral.getCurrentMessage(), mBlePeripheral.getCurrentOffset(), characteristic);
             } catch (Exception e) {
                 Log.e(TAG, "Unable to send next chunk of message");
             }
         }
     }
 
-    // convert bytes to hexadecimal for debugging
+    /**
+     * convert bytes to hexadecimal for debugging purposes
+     *
+     * @param bytes
+     * @return Hexadecimal String representation of the byte array
+     */
     public static String bytesToHex(byte[] bytes) {
+        if (bytes.length <=0) return "";
         char[] hexArray = "0123456789ABCDEF".toCharArray();
         char[] hexChars = new char[bytes.length * 3];
         for ( int j = 0; j < bytes.length; j++ ) {
@@ -276,12 +327,24 @@ public class TalkActivity extends AppCompatActivity {
         return new String(hexChars);
     }
 
-    // convert bytes to an integer in Little Endian
-    public static int bytesToInt(byte[] bytes) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes); // big-endian by default
-        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-        int result = byteBuffer.getInt();
-        return result;
+    /**
+     * convert bytes to an integer in Little Endian for debugging purposes
+     *
+     * @param bytes a byte array
+     * @return integer integer representation of byte array
+     */
+    //
+    public static String bytesToInt(byte[] bytes) {
+        if (bytes.length <=0) return "";
+        char[] decArray = "0123456789".toCharArray();
+        char[] decChars = new char[bytes.length * 3];
+        for ( int j = 0; j < bytes.length; j++ ) {
+            int v = bytes[j] & 0xFF;
+            decChars[j * 2] = decArray[v >>> 4];
+            decChars[j * 2 + 1] = decArray[v & 0x0F];
+        }
+
+        return new String(decChars);
     }
 
     /**
@@ -313,12 +376,12 @@ public class TalkActivity extends AppCompatActivity {
                 }
                 final String message = m;
 
-                if (message.equals(BleDevice.FLOW_CONROL_MESSAGE)) {
-                    onBleSentMessageReceived(characteristic);
+                if (message.equals(BlePeripheral.FLOW_CONROL_VALUE)) {
+                    onBleCharacteristicReady(characteristic);
                 }
 
-                Log.v(TAG, "Characteristic read: "+bytesToHex(data));
-                Log.v(TAG, "Characteristic read: "+bytesToInt(data));
+                Log.v(TAG, "Characteristic read hex value: "+bytesToHex(data));
+                Log.v(TAG, "Characteristic read int value: "+bytesToInt(data));
 
                 runOnUiThread(new Runnable() {
                     @Override
@@ -332,18 +395,19 @@ public class TalkActivity extends AppCompatActivity {
 
         /**
          * Characteristic was written successfully.  update the UI
+         *
          * @param gatt Connection to the GATT
          * @param characteristic The Characteristic that was written
          * @param status write status
          */
         @Override
-        public void onCharacteristicWrite (BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             Log.v(TAG, "characteristic written");
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        onBleMessageSent();
+                        onBleCharacteristicValueWritten();
                     }
                 });
             }
@@ -356,7 +420,7 @@ public class TalkActivity extends AppCompatActivity {
          */
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
-            mBleDevice.readMessage(characteristic);
+            mBlePeripheral.readValueFromCharacteristic(characteristic);
         }
 
         /**
@@ -369,13 +433,22 @@ public class TalkActivity extends AppCompatActivity {
         public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.v(TAG, "Connected to device");
+                Log.v(TAG, "Connected to peripheral");
+
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        onBleConnected();
+                    }
+                });
 
                 bluetoothGatt.discoverServices();
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.v(TAG, "Disconnected from device");
+                Log.v(TAG, "Disconnected from peripheral");
 
                 disconnect();
+                mBlePeripheral.close();
             }
         }
 
@@ -391,9 +464,24 @@ public class TalkActivity extends AppCompatActivity {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 // connect to a specific service
 
+                BluetoothGattService gattService = bluetoothGatt.getService(mServiceUUID);
+                // while we are here, let's ask for this service's characteristics:
+                List<BluetoothGattCharacteristic> characteristics = gattService.getCharacteristics();
+                for (BluetoothGattCharacteristic characteristic : characteristics) {
+                    if (characteristic != null) {
+                        Log.v(TAG, "found characteristic: "+characteristic.getUuid().toString());
+
+                    }
+                }
+
                 // determine the read/write/notify permissions of the Characterstic
+                Log.v(TAG, "desired service is: "+mServiceUUID.toString());
+                Log.v(TAG, "desired charactersitic is: "+mCharacteristicUUID.toString());
+                Log.v(TAG, "this service: "+bluetoothGatt.getService(mServiceUUID).getUuid().toString());
+                Log.v(TAG, "this characteristic: "+bluetoothGatt.getService(mServiceUUID).getCharacteristic(mCharacteristicUUID).getUuid().toString());
+
                 mCharacteristic = bluetoothGatt.getService(mServiceUUID).getCharacteristic(mCharacteristicUUID);
-                if (BleDevice.isCharacteristicReadable(mCharacteristic)) {
+                if (BlePeripheral.isCharacteristicReadable(mCharacteristic)) {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -402,7 +490,7 @@ public class TalkActivity extends AppCompatActivity {
                     });
                 }
 
-                if (BleDevice.isCharacteristicWritable(mCharacteristic)) {
+                if (BlePeripheral.isCharacteristicWritable(mCharacteristic)) {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -412,11 +500,11 @@ public class TalkActivity extends AppCompatActivity {
                 }
 
 
-                if (BleDevice.isCharacteristicNotifiable(mCharacteristic)) {
+                if (BlePeripheral.isCharacteristicNotifiable(mCharacteristic)) {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            mBleDevice.setCharacteristicNotification(mCharacteristic, true);
+                            mBlePeripheral.setCharacteristicNotification(mCharacteristic, true);
                             onCharacteristicNotifiable();
 
                         }
@@ -426,7 +514,7 @@ public class TalkActivity extends AppCompatActivity {
 
 
             } else {
-                Log.e(TAG, "Something went wrong while discovering GATT services from this device");
+                Log.e(TAG, "Something went wrong while discovering GATT services from this peripheral");
             }
 
 
@@ -439,7 +527,7 @@ public class TalkActivity extends AppCompatActivity {
      */
     private void disconnect() {
         // close the Activity when disconnecting.  No actions can be done without a connection
-        mBleDevice.disconnect();
+        mBlePeripheral.disconnect();
         finish();
     }
 

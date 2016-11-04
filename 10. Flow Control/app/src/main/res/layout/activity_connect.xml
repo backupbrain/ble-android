@@ -46,9 +46,16 @@
             android:id="@+id/address"/>
 
         <ExpandableListView
-            android:id="@+id/devices_list"
+            android:id="@+id/peripherals_list"
             android:layout_width="fill_parent"
             android:layout_height="fill_parent" />
+
+
+        <TextView
+            android:id="@+id/gatt_profile_list_empty"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:text="@string/gatt_profile_list_empty"/>
 
     </LinearLayout>
 

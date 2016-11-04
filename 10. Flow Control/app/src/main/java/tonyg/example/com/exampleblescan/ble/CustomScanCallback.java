@@ -15,12 +15,12 @@ public abstract class CustomScanCallback implements BluetoothAdapter.LeScanCallb
     /**
      * New Perpheral found.
      *
-     * @param device The Peripheral Device
+     * @param bluetoothDevice The Peripheral Device
      * @param rssi The Peripheral's RSSI indicating how strong the radio signal is
      * @param scanRecord Other information about the scan result
      */
     @Override
-    public abstract void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord);
+    public abstract void onLeScan(final BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord);
 
     /**
      * BLE Scan complete

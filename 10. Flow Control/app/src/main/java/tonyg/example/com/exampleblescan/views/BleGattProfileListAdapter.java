@@ -2,6 +2,7 @@ package tonyg.example.com.exampleblescan.views;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,10 +10,11 @@ import android.widget.BaseExpandableListAdapter;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 import tonyg.example.com.exampleblescan.R;
-import tonyg.example.com.exampleblescan.ble.BleDevice;
+import tonyg.example.com.exampleblescan.ble.BlePeripheral;
 
 
 /**
@@ -25,8 +27,8 @@ import tonyg.example.com.exampleblescan.ble.BleDevice;
 public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
     private final static String TAG = BleGattProfileListAdapter.class.getSimpleName();
 
-    private ArrayList<BleGattServiceListItem> mBleGattServiceListItems; // list of Services
-    private Map<Integer, ArrayList<BleGattCharacteristicListItem>> mBleCharacteristicListItems; // list of Characteristics
+    private ArrayList<BleGattServiceListItem> mBleGattServiceListItems = new ArrayList<BleGattServiceListItem>(); // list of Services
+    private Map<Integer, ArrayList<BleGattCharacteristicListItem>> mBleCharacteristicListItems = new HashMap<Integer, ArrayList<BleGattCharacteristicListItem>>(); // list of Characteristics
 
     /**
      * Instantiate the class
@@ -59,17 +61,15 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
      * @param service the GATT Service to add
      */
     public void addService(BluetoothGattService service) {
-        int serviceItemID = mBleGattServiceListItems.size()-1;
+        int serviceItemID = mBleGattServiceListItems.size();
         BleGattServiceListItem serviceListItem = new BleGattServiceListItem(service, serviceItemID);
         mBleGattServiceListItems.add(serviceListItem);
         mBleCharacteristicListItems.put(serviceItemID, new ArrayList<BleGattCharacteristicListItem>());
-
-        // update the UI
-        notifyDataSetChanged();
     }
 
     /**
      * Add a new Characteristic to be listed in the ListView
+     *
      * @param service the Service that this Characteristic belongs to
      * @param characteristic the Gatt Characteristic to add
      * @throws Exception if such a service does not exist
@@ -78,8 +78,11 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
         // find the Service in this listView with matching UUID from the input service
         int serviceItemId = -1;
         for (BleGattServiceListItem bleGattServiceListItem : mBleGattServiceListItems) {
-            if (bleGattServiceListItem.getService().equals(service)) {
+            //serviceItemId++;
+            if (bleGattServiceListItem.getService().getUuid().equals(service.getUuid())) {
+                Log.v(TAG, "Service found with UUID: "+service.getUuid().toString());
                 serviceItemId = bleGattServiceListItem.getItemId();
+                //break;
             }
         }
 
@@ -88,10 +91,11 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
 
         // add characterstic to the end of the sub-list for the parent service
         int characteristicItemId = mBleCharacteristicListItems.size();
+        if (mBleCharacteristicListItems.get(serviceItemId) == null) {
+            mBleCharacteristicListItems.put(serviceItemId, new ArrayList<BleGattCharacteristicListItem>());
+        }
         BleGattCharacteristicListItem characteristicListItem = new BleGattCharacteristicListItem(characteristic, characteristicItemId);
         mBleCharacteristicListItems.get(serviceItemId).add(characteristicListItem);
-
-        notifyDataSetChanged();
     }
 
     /**
@@ -136,7 +140,7 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
         // if this ListItem does not exist yet, generate it
         // otherwise, use it
         if(convertView == null) {
-            // convert list_item_device.xml to a View
+            // convert list_item_peripheral.xml.xml to a View
             LayoutInflater inflater = LayoutInflater.from(parent.getContext());
             v = inflater.inflate(R.layout.list_item_ble_service, parent, false);
 
@@ -154,7 +158,7 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
         // if there are known Services, create a ListItem that says so
         // otherwise, display a ListItem with Bluetooth Service information
         if (getGroupCount() <= 0) {
-            holder.mUuid.setText(R.string.no_data);
+            holder.mUuid.setText(R.string.no_peripherals);
         } else {
             BleGattServiceListItem item = getGroup(position);
 
@@ -265,24 +269,24 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
         uuidTV.setText(characteristic.getUuid().toString());
 
         // Display the read/write/notify attributes of the Characteristic
-        if (BleDevice.isCharacteristicReadable(characteristic)) {
+        if (BlePeripheral.isCharacteristicReadable(characteristic)) {
             mPropertyReadable.setVisibility(View.VISIBLE);
         } else {
             mPropertyReadable.setVisibility(View.GONE);
         }
-        if (BleDevice.isCharacteristicWritable(characteristic)) {
+        if (BlePeripheral.isCharacteristicWritable(characteristic)) {
             mPropertyWritable.setVisibility(View.VISIBLE);
         } else {
             mPropertyWritable.setVisibility(View.GONE);
         }
-        if (BleDevice.isCharacteristicNotifiable(characteristic)) {
+        if (BlePeripheral.isCharacteristicNotifiable(characteristic)) {
             mPropertyNotifiable.setVisibility(View.VISIBLE);
         } else {
             mPropertyNotifiable.setVisibility(View.GONE);
         }
-        if (!BleDevice.isCharacteristicNotifiable(characteristic) &&
-                !BleDevice.isCharacteristicWritable(characteristic) &&
-                !BleDevice.isCharacteristicReadable(characteristic)) {
+        if (!BlePeripheral.isCharacteristicNotifiable(characteristic) &&
+                !BlePeripheral.isCharacteristicWritable(characteristic) &&
+                !BlePeripheral.isCharacteristicReadable(characteristic)) {
             mPropertyNone.setVisibility(View.VISIBLE);
         } else {
             mPropertyNone.setVisibility(View.GONE);

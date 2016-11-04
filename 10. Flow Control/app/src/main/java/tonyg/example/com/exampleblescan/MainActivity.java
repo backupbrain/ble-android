@@ -12,15 +12,13 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import tonyg.example.com.exampleblescan.ble.BleCommManager;
 import tonyg.example.com.exampleblescan.ble.CustomScanCallback;
-import tonyg.example.com.exampleblescan.views.BleDeviceListItem;
-import tonyg.example.com.exampleblescan.views.BleDevicesListAdapter;
+import tonyg.example.com.exampleblescan.views.BlePeripheralListItem;
+import tonyg.example.com.exampleblescan.views.BlePeripheralsListAdapter;
 
 
 /**
@@ -37,14 +35,18 @@ public class MainActivity extends AppCompatActivity {
     /** Bluetooth Stuff **/
     private BleCommManager mBleCommManager;
 
+    /** Activity State **/
+    private boolean mScanningActive = false;
+    private boolean mConnectToPeripheral = false;
+    private String mConnectToPeripheralMacAddress = null;
 
-    private List<BluetoothDevice> mBluetoothDevices = new ArrayList<BluetoothDevice>();
 
     /** UI Stuff **/
-    private MenuItem mProgressSpinner;
+    private MenuItem mScanProgressSpinner;
     private MenuItem mStartScanItem, mStopScanItem;
-    private ListView mDevicesList;
-    private BleDevicesListAdapter mDevicesListAdapter;
+    private ListView mBlePeripheralsListView;
+    private TextView mPeripheralsListEmptyTV;
+    private BlePeripheralsListAdapter mBlePeripheralsListAdapter;
 
 
     @Override
@@ -76,55 +78,73 @@ public class MainActivity extends AppCompatActivity {
         mBleCommManager.stopScanning(mScanCallback);
     }
 
+
+    /**
+     * Load UI components
+     */
     public void loadUI() {
         // load UI components, set up the Peripheral list
-        mDevicesList = (ListView) findViewById(R.id.devices_list);
-        mDevicesListAdapter = new BleDevicesListAdapter();
-        mDevicesList.setAdapter(mDevicesListAdapter);
-
+        mPeripheralsListEmptyTV = (TextView) findViewById(R.id.peripheral_list_empty);
+        mBlePeripheralsListView = (ListView) findViewById(R.id.peripherals_list);
+        mBlePeripheralsListAdapter = new BlePeripheralsListAdapter();
+        mBlePeripheralsListView.setAdapter(mBlePeripheralsListAdapter);
+        mBlePeripheralsListView.setEmptyView(mPeripheralsListEmptyTV);
     }
 
+    /**
+     * Attach callback listeners to UI elements
+     */
     public void attachCallbacks() {
         // when a user clicks on a Peripheral in the list, open that Peripheral in the Connect Activity
-        mDevicesList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        mBlePeripheralsListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (mBluetoothDevices.size() > 0) {
+                Log.v(TAG, "Adapter count: "+parent.getCount());
+                Log.v(TAG, "Adapter child count: "+parent.getChildCount());
+                Log.v(TAG, "Adapter click position: "+position);
+                Log.v(TAG, "Adapter view: "+view.toString());
+                Log.v(TAG, "Adapter ID: "+id);
+
+                // only click through if the selected ListItem represents a Bluetooth Peripheral
+                BlePeripheralListItem selectedPeripheralListItem = (BlePeripheralListItem) mBlePeripheralsListView.getItemAtPosition(position);
+                if ((mBlePeripheralsListView.getCount() > 0) && (selectedPeripheralListItem.getDevice() != null)) {
                     Log.v(TAG, "List View click: position: " + position + ", id: " + id);
-                    BleDeviceListItem listItem = mDevicesListAdapter.getItem(position);
-                    BluetoothDevice device = mBluetoothDevices.get(listItem.getItemId());
+                    BlePeripheralListItem listItem = mBlePeripheralsListAdapter.getItem(position);
+                    connectToPeripheral(listItem.getMacAddress());
+                    stopScan();
 
-                    // start the Connect Activity and connect to this Bluetooth Device
-                    Intent intent = new Intent(getBaseContext(), ConnectActivity.class);
-                    intent.putExtra(ConnectActivity.MAC_ADDRESS_KEY, device.getAddress());
-
-                    Log.v(TAG, "Setting intent: " + ConnectActivity.MAC_ADDRESS_KEY + ": " + device.getAddress());
-                    startActivity(intent);
                 }
-
             }
         });
     }
 
+    /**
+     * Create a menu
+     * @param menu The menu
+     * @return <b>true</b> if processed successfully
+     */
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
 
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
         mStartScanItem = menu.findItem(R.id.action_start_scan);
         mStopScanItem =  menu.findItem(R.id.action_stop_scan);
-        mProgressSpinner = menu.findItem(R.id.scan_progress_item);
+        mScanProgressSpinner = menu.findItem(R.id.scan_progress_item);
 
         mStartScanItem.setVisible(true);
         mStopScanItem.setVisible(false);
-        mProgressSpinner.setVisible(false);
+        mScanProgressSpinner.setVisible(false);
 
-        return super.onPrepareOptionsMenu(menu);
+        return true;
     }
+
+    /**
+     * Handle a menu item click
+     *
+     * @param item the Menuitem
+     * @return <b>true</b> if processed successfully
+     */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Start a BLE scan when a user clicks the "start scanning" menu button
@@ -148,8 +168,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
+    /**
+     * Initialize the Bluetooth Radio
+     */
     public void initializeBluetooth() {
+        // reset connection variables
+        mScanningActive = false;
+        mConnectToPeripheral = false;
+        mConnectToPeripheralMacAddress = null;
+
         try {
             mBleCommManager.initBluetooth(this);
         } catch (Exception e) {
@@ -166,58 +193,97 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * Start scanning for Peripherals
+     */
     public void startScan() {
         // update UI components
         mStartScanItem.setVisible(false);
         mStopScanItem.setVisible(true);
-        mProgressSpinner.setVisible(true);
+        mScanProgressSpinner.setVisible(true);
 
         // clear the list of Peripherals and start scanning
-        mDevicesListAdapter.clear();
+        mBlePeripheralsListAdapter.clear();
         try {
-            mBleCommManager.scanForDevices(mScanCallback);
+            mScanningActive = true;
+            mBleCommManager.scanForPeripherals(mScanCallback);
         } catch (Exception e) {
             Log.e(TAG, "Could not open Ble Device Scanner");
         }
 
     }
 
-
+    /**
+     * Stop scanning for Peripherals
+     */
     public void stopScan() {
         mBleCommManager.stopScanning(mScanCallback);
     }
 
+    /**
+     * Event trigger when BLE Scanning has stopped
+     */
     public void onBleScanStopped() {
         // update UI compenents to reflect that a BLE scan has stopped
-        mStopScanItem.setVisible(false);
-        mProgressSpinner.setVisible(false);
-        mStartScanItem.setVisible(true);
+        mScanningActive = false;
+        if (mStopScanItem != null) mStopScanItem.setVisible(false);
+        if (mScanProgressSpinner != null) mScanProgressSpinner.setVisible(false);
+        if (mStartScanItem != null) mStartScanItem.setVisible(true);
+
+        if (mConnectToPeripheralMacAddress != null) {
+            connectToPeripheral(mConnectToPeripheralMacAddress);
+        }
     }
 
+    /**
+     * Hand the Peripheral Mac Address over to the Connect Activity
+     *
+     * @param peripheralMacAddress the MAC address of the selected Peripheral
+     */
+    public void connectToPeripheral(String peripheralMacAddress) {
+        // in case the system isn't ready to stop scanning, store the connection information
+        mConnectToPeripheral = true;
+        mConnectToPeripheralMacAddress = peripheralMacAddress;
 
-    // FIXME: make separate class
-    // aynctaskloader
+        if (mScanningActive == false) {
+            // start the Connect Activity and connect to this Bluetooth Peripheral
+            Intent intent = new Intent(getBaseContext(), ConnectActivity.class);
+            intent.putExtra(ConnectActivity.PERIPHERAL_MAC_ADDRESS_KEY, mConnectToPeripheralMacAddress);
+
+            Log.v(TAG, "Setting intent: " + ConnectActivity.PERIPHERAL_MAC_ADDRESS_KEY + ": " + mConnectToPeripheralMacAddress);
+            startActivity(intent);
+        }
+    }
+
+    // FIXME: consider make separate class, use an asynctastloader?
     private final CustomScanCallback mScanCallback = new CustomScanCallback() {
         // when a Peripheral is found, process it
-        public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
-            Log.v(TAG, "Found "+device.getName()+", "+device.getAddress());
-            // only add the device if
+        public void onLeScan(final BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
+            Log.v(TAG, "Found "+bluetoothDevice.getName()+", "+bluetoothDevice.getAddress());
+            // only add the peripheral if
             // - it has a name, on
             // - doesn't already exist in our list, or
-            // - is transmitting at a higher power (is closer) than an existing device
-            boolean addDevice = true;
-            if (device.getName() == null) {
-                addDevice = false;
+            // - is transmitting at a higher power (is closer) than an existing peripheral
+            boolean addPeripheral = true;
+            if (bluetoothDevice.getName() == null) {
+                addPeripheral = false;
             }
-            for(BleDeviceListItem listItem : mDevicesListAdapter.getItems()) {
-                if ( listItem.getName().equals(device.getName()) ) {
-                    addDevice = false;
+            for(BlePeripheralListItem listItem : mBlePeripheralsListAdapter.getItems()) {
+                if ( listItem.getBroadcastName().equals(bluetoothDevice.getName()) ) {
+                    addPeripheral = false;
                 }
             }
 
-            if (addDevice) {
-                mDevicesListAdapter.addBluetoothDevice(device, rssi);
+            if (addPeripheral) {
+                mBlePeripheralsListAdapter.addBluetoothPeripheral(bluetoothDevice, rssi);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        mBlePeripheralsListAdapter.notifyDataSetChanged();
+                    }
+                });
             }
+
         }
 
         // update UI components when done scanning - push onto main thread

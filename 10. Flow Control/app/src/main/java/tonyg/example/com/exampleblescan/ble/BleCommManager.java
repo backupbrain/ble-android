@@ -8,7 +8,6 @@ import android.content.pm.PackageManager;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import tonyg.example.com.exampleblescan.MainActivity;
 
 /**
  * This class helps us manage Bluetooth Low Energy scanning functions.
@@ -46,7 +45,7 @@ public class BleCommManager {
     }
 
 
-    public void scanForDevices(final CustomScanCallback scanCallback) throws Exception {
+    public void scanForPeripherals(final CustomScanCallback scanCallback) throws Exception {
         // Throw an exception if Bluetooth is not supported by this Android Device
         if (mBluetoothAdapter == null) {
             throw new Exception("Bluetooth Not Supported");
