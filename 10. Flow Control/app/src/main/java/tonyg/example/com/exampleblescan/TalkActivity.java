@@ -110,12 +110,12 @@ public class TalkActivity extends AppCompatActivity {
      */
     public void loadUI() {
         mResponseText = (TextView) findViewById(R.id.response_text);
-        mSendText = (TextView) findViewById(R.id.send_text);
+        mSendText = (TextView) findViewById(R.id.write_text);
         mPeripheralBroadcastNameTV = (TextView)findViewById(R.id.name);
         mPeripheralAddressTV = (TextView)findViewById(R.id.address);
         mServiceUUIDTV = (TextView)findViewById(R.id.service_uuid);
 
-        mSendButton = (Button) findViewById(R.id.send_button);
+        mSendButton = (Button) findViewById(R.id.write_button);
         mReadButton = (Button) findViewById(R.id.read_button);
 
         mPeripheralBroadcastNameTV.setText(R.string.connecting);

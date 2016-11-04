@@ -158,7 +158,7 @@ public class BleGattProfileListAdapter extends BaseExpandableListAdapter {
         // if there are known Services, create a ListItem that says so
         // otherwise, display a ListItem with Bluetooth Service information
         if (getGroupCount() <= 0) {
-            holder.mUuid.setText(R.string.no_peripherals);
+            holder.mUuid.setText(R.string.peripheral_list_empty);
         } else {
             BleGattServiceListItem item = getGroup(position);
 

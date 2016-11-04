@@ -97,7 +97,7 @@
             <EditText
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/send_text"
+                android:id="@+id/write_text"
                 android:inputType="textShortMessage"
                 android:layout_weight="2" />
 
@@ -105,7 +105,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/send_button"
-                android:id="@+id/send_button" />
+                android:id="@+id/write_button" />
 
 
         </LinearLayout>

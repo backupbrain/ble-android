@@ -122,7 +122,7 @@ public class BlePeripheralsListAdapter extends BaseAdapter {
         // if there are known Peripherals, create a ListItem that says so
         // otherwise, display a ListItem with Bluetooth Periheral information
         if (mBluetoothPeripheralListItems.size() <= 0) {
-            holder.mBroadcastName.setText(R.string.no_peripherals);
+            holder.mBroadcastName.setText(R.string.peripheral_list_empty);
         } else {
             BlePeripheralListItem item = mBluetoothPeripheralListItems.get(position);
 

@@ -5,7 +5,7 @@
     <string name="action_start_scan">Scan</string>
     <string name="action_stop_scan">Stop</string>
     <string name="scanning">Scanning...</string>
-    <string name="no_peripherals">No Peripherals Found</string>
+    <string name="peripheral_list_empty">No Peripherals Found</string>
 
     <string name="action_connect">Connect</string>
     <string name="action_disconnect">Disconnect</string>
@@ -23,7 +23,7 @@
 
 
 
-    <string name="send_button">Send</string>
+    <string name="send_button">Write</string>
     <string name="read_button">Read</string>
     <string name="response_label">Response</string>
 
